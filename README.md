@@ -1,11 +1,13 @@
 # 🏕️ Barrett Cove Campground Availability Checker
 
-Automated bot to check campsite availability at **Barrett Cove Campground** (Lake McClure) via the Campspot booking system.
+Automated bot to check campsite availability at **Barrett Cove Campground** (Lake McClure) via the Campspot booking system. 
+
+*Particularly useful for checking campground availability on NICA Norcal race weekends.*
 
 **Pre-configured for:**
 - **Dates:** March 13–14, 2026
 - **Campsite Type:** Travel Trailer
-- **RV Length:** 30 ft
+- **RV Length:** none (no filter by default)
 
 ---
 
@@ -46,21 +48,24 @@ node check-availability.js \
 | `--check-in` | `2026-03-13` | Check-in date (YYYY-MM-DD) |
 | `--check-out` | `2026-03-14` | Check-out date (YYYY-MM-DD) |
 | `--rv-type` | `travel trailer` | RV type filter |
-| `--rv-length` | `30` | RV length in feet |
+| `--rv-length` | none | RV length in feet |
 | `--loop` | off | Continuously re-check |
 | `--interval` | `15` | Minutes between checks |
 | `--notify` | off | Desktop notification on find |
+| `--whatsapp-phone` | none | WhatsApp number in international format (e.g. `15551234567`) |
+| `--whatsapp-key` | none | CallMeBot API key |
 | `--no-headless` | off | Show the browser window |
 
 ## How It Works
 
 1. Launches a headless Chrome browser via Puppeteer
-2. Navigates to the Barrett Cove booking page on `book.lakemcclure.com`
-3. Enters the search dates and filters
-4. Intercepts Campspot API responses for structured availability data
-5. Scrapes the rendered page for site cards, prices, and availability
-6. Reports results to the terminal (with optional desktop notifications)
-7. Saves debug screenshots to `/tmp/campcheck-*.png`
+2. Navigates to the Barrett Cove booking page with the date range: `?dates=YYYY-MM-DD,YYYY-MM-DD`
+3. Clicks the matching RV type chip in the "Way to Stay" filter UI
+4. If `--rv-length` is set, fills the length input using React's native setter to trigger a re-render
+5. Clicks the Search/Update button if any filter was applied
+6. Waits for results to load, then reads the count from the "N Sites Available" label on the page
+7. Saves a debug screenshot to `/tmp/campcheck-results.png`
+8. Prints the result count to the terminal and (if sites are found) sends desktop and/or WhatsApp notifications
 
 ## Tips
 
