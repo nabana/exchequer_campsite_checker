@@ -15,12 +15,14 @@
  *   --check-in     Check-in date (YYYY-MM-DD)      [default: 2026-03-13]
  *   --check-out    Check-out date (YYYY-MM-DD)      [default: 2026-03-14]
  *   --rv-type      RV type filter                   [default: "travel trailer"]
- *   --rv-length    RV length in feet                [default: 30]
- *   --loop         Continuously check availability
- *   --interval     Minutes between checks           [default: 15]
- *   --notify       Show desktop notification on availability (macOS/Linux)
- *   --headless     Run in headless mode             [default: true]
- *   --no-headless  Show the browser window
+ *   --rv-length      RV length in feet                [default: none]
+ *   --loop           Continuously check availability
+ *   --interval       Minutes between checks           [default: 15]
+ *   --notify         Show desktop notification on availability (macOS/Linux)
+ *   --whatsapp-phone Phone number in international format (e.g. 15551234567)
+ *   --whatsapp-key   CallMeBot API key
+ *   --headless       Run in headless mode             [default: true]
+ *   --no-headless    Show the browser window
  */
 
 const puppeteer = require('puppeteer');
@@ -37,6 +39,8 @@ const DEFAULT_CONFIG = {
   loop: false,
   interval: 15,        // minutes
   notify: false,
+  whatsappPhone: null,
+  whatsappKey: null,
   headless: true,
   timeout: 60000,      // ms - page load timeout
   waitForResults: 15000, // ms - wait for search results
@@ -70,6 +74,12 @@ function parseArgs() {
       case '--notify':
         config.notify = true;
         break;
+      case '--whatsapp-phone':
+        config.whatsappPhone = args[++i];
+        break;
+      case '--whatsapp-key':
+        config.whatsappKey = args[++i];
+        break;
       case '--headless':
         config.headless = true;
         break;
@@ -91,9 +101,11 @@ Options:
   --rv-length FT      RV length in feet           (default: none)
   --loop              Keep checking periodically
   --interval  MIN     Minutes between checks      (default: ${DEFAULT_CONFIG.interval})
-  --notify            Desktop notification on find
-  --no-headless       Show the browser window
-  -h, --help          Show this help
+  --notify                    Desktop notification on find
+  --whatsapp-phone  NUMBER    WhatsApp phone in international format (e.g. 15551234567)
+  --whatsapp-key    KEY       CallMeBot API key
+  --no-headless               Show the browser window
+  -h, --help                  Show this help
 `);
         process.exit(0);
     }
@@ -114,6 +126,18 @@ function sendNotification(title, message) {
   }
   // Also play a bell sound in terminal
   process.stdout.write('\x07');
+}
+
+// ─── WhatsApp Helper (CallMeBot) ─────────────────────────────────────────────
+async function sendWhatsApp(phone, apiKey, message) {
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    log('📱 WhatsApp message sent.');
+  } catch (err) {
+    logError(`WhatsApp send failed: ${err.message}`);
+  }
 }
 
 // ─── Logging ────────────────────────────────────────────────────────────────
@@ -239,11 +263,10 @@ async function checkAvailability(config) {
     });
     const sourceDesc = 'page label';
 
-    if (config.notify && siteCount > 0) {
-      sendNotification(
-        '🏕️ Campsite Available!',
-        `${siteCount} site(s) available at Barrett Cove for ${config.checkIn}`
-      );
+    if (siteCount > 0) {
+      const msg = `🏕️ ${siteCount} site(s) available at Barrett Cove for ${config.checkIn} - ${config.checkOut}`;
+      if (config.notify) sendNotification('🏕️ Campsite Available!', msg);
+      if (config.whatsappPhone && config.whatsappKey) await sendWhatsApp(config.whatsappPhone, config.whatsappKey, msg);
     }
 
     log('\n═══════════════════════════════════════════════');
@@ -267,13 +290,7 @@ async function runLoop(config) {
     const found = await checkAvailability(config);
 
     if (found) {
-      log('🎉 SITES AVAILABLE! Check the results above.');
-      if (config.notify) {
-        sendNotification(
-          '🏕️ CAMPSITE FOUND!',
-          `Sites available at Barrett Cove ${config.checkIn} - ${config.checkOut}!`
-        );
-      }
+      log('🎉 SITES AVAILABLE!');
     }
 
     log(`⏰ Next check in ${config.interval} minute(s)...\n`);
